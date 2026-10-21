@@ -119,7 +119,7 @@ for ((i=0; i<$len; i++)); do
         ##################################################################################
         log_title "${CUR_DP_MGMT_IP} ====================================================================================="
         log_title "${CUR_DP_MGMT_IP} Quiescing domain: ${QUIESCE_DOMAIN}"
-        declare soma_resp_quisce_domain="$(ampQuiesceDomain $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_AMP_URL $QUIESCE_DOMAIN $QUIESCE_INTERVAL)"
+        declare soma_resp_quisce_domain="$(ampQuiesceDomain $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_AMP_URL $QUIESCE_DOMAIN $QUIESCE_TIMEOUT)"
         soma_response_analysis=$(printf '%s' "$soma_resp_quisce_domain" | grep -o '<result>ok</result>')
         if [ "${#soma_response_analysis}" = 0 ]; then
             log_error "${CUR_DP_MGMT_IP} Failure"
@@ -135,8 +135,8 @@ for ((i=0; i<$len; i++)); do
             ##################################################################################
             # Wait to let the quiesce finish
             ##################################################################################
-            log_info "${CUR_DP_MGMT_IP} Waiting for ${QUIESCE_INTERVAL} seconds"
-            sleep $QUIESCE_INTERVAL
+            log_info "${CUR_DP_MGMT_IP} Waiting for ${QUIESCE_STATUS_POLL_INTERVAL} seconds"
+            sleep $QUIESCE_STATUS_POLL_INTERVAL
 
             ##################################################################################
             # Verify that domain quiesced
@@ -146,7 +146,7 @@ for ((i=0; i<$len; i++)); do
             domain_status=$(printf '%s' "$soma_response" | xml sel -t -v "normalize-space(//DomainStatus[Domain='$QUIESCE_DOMAIN']/QuiesceState)" -)
             log_info "${CUR_DP_MGMT_IP} Domain status: $domain_status"
             quiesce_check_count+=1
-            if [ "$domain_status" != "quiesced" ] && [ "$quiesce_check_count" -ge "$QUIESCE_MAX_CHECKS" ]; then
+            if [ "$domain_status" != "quiesced" ] && [ "$quiesce_check_count" -ge "$QUIESCE_STATUS_POLL_MAX_CHECKS" ]; then
                 log_error "${CUR_DP_MGMT_IP} Domain did not quiesce after ${quiesce_check_count} checks, aborting"
                 exit
             fi
