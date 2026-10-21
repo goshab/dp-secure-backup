@@ -235,24 +235,16 @@ for ((i=0; i<$len; i++)); do
     log_info "$(ls -lh "$LOCAL_SB_FOLDER")"
 done
 
-log_title "====================================================================================="
-log_info "End: $(date)"
-log_title "====================================================================================="
-
-exit
-
-# Send the Secure Backup request
-
-# Download the Secure Backup manifest file
-log_title "Downloading Secure Backup files"
-log_title "====================================================================================="
-
 if [ "$ADD_TO_GIT" = "true" ]; then
+    log_title "====================================================================================="
     log_title "Pushing Secure Backup files to git repository"
-    log_success "Git remote=$GIT_REMOTE_NAME git branch=$GIT_BRANCH_NAME"
+    log_info "Git remote=$GIT_REMOTE_NAME git branch=$GIT_BRANCH_NAME"
     git pull $GIT_REMOTE_NAME $GIT_BRANCH_NAME
     git add $LOCAL_SB_FOLDER\*
     git commit -m "Automated push"
     git push $GIT_REMOTE_NAME $GIT_BRANCH_NAME
-    log_title "====================================================================================="
 fi
+
+log_title "====================================================================================="
+log_title "Script ended: $(date)"
+log_title "====================================================================================="
