@@ -1,6 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -uo pipefail
 ##################################################################################
-# This DataPower automation performs the following activities:
+# This automation performs the following activities:
+#  * creates a DataPower Secure Backup
 #  * creates a DataPower Secure Backup
 #  * downloads the Secure Backup files
 #  * uploads the files to a git repo
@@ -8,155 +10,9 @@
 # Prerequisites:
 #   curl (v7.79.1)
 #   xmlstarlet
+#   jq
 ##################################################################################
 # by Gosha Belenkiy
-##################################################################################
-log_to_file() {
-    MSG=$1
-
-    TIME=$(date +'%Y-%m-%dT%H:%M:%S')
-    echo "$TIME $MSG" >> $LOG_FILE
-}
-log(){
-    MSG=$1
-
-    TIME=$(date +'%Y-%m-%dT%H:%M:%S')
-    echo -e "$TIME $MSG"
-}
-log_title() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log $BLUE"$MSG"$NC
-}
-log_info() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log $PURPLE"$MSG"$NC
-}
-log_error() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log $RED"$MSG"$NC
-}
-log_success() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log $GREEN"$MSG"$NC
-}
-##################################################################################
-# Send SOMA command
-##################################################################################
-runSoma() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_SOMA_REQ=$4
-    DP_SOMA_REQ_FILENAME=$5
-    EXTRA_CURL_ARGS=$6
-    VALIDATE_OUTPUT=$7
-
-    soma_cli="curl -s -k $EXTRA_CURL_ARGS $DP_SOMA_URL"
-    if [ ! -z "$DP_SOMA_REQ" ]; then
-        soma_cli="${soma_cli} -X POST -d '${DP_SOMA_REQ}'"
-    fi
-
-    if [ ! -z "$DP_SOMA_REQ_FILENAME" ]; then
-        soma_cli="$soma_cli -T '${DP_SOMA_REQ_FILENAME}'"
-    fi
-    soma_cli="$soma_cli -u $DP_USERNAME:$DP_PASSWORD"
-    if [ "$DEBUG" = "true" ]; then
-        log_to_file "runSoma() SOMA curl cli=${soma_cli}"
-    fi
-    soma_response=$(eval $soma_cli)
-
-    if [ "$DEBUG" = "true" ]; then
-        log_to_file "runSoma() SOMA response=${soma_response}"
-    fi
-    echo $soma_response
-}
-##################################################################################
-# SOMA - Run Secure Backup
-##################################################################################
-somaSecureBackup() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_CERTIFICATE=$4
-    DP_SB_DST_FOLDER=$5
-
-    SOMA_REQ=$(cat <<-EOF
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
-    <soapenv:Body>
-		<dp:request domain="default">
-			<dp:do-action>
-				<SecureBackup>
-					<cert>$DP_CERTIFICATE</cert>
-					<destination>$DP_SB_DST_FOLDER</destination>
-					<include-iscsi>$INCLUDE_ISCSI</include-iscsi>
-					<include-raid>$INCLUDE_RAID</include-raid>
-				</SecureBackup>
-			</dp:do-action>
-		</dp:request>
-    </soapenv:Body>
-</soapenv:Envelope>
-EOF
-)
-
-    declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
-}
-##################################################################################
-# SOMA - Get DataPower firmware status
-##################################################################################
-somaGetFirmwareStatus() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-
-    SOMA_REQ=$(cat <<-EOF
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
-    <soapenv:Body>
-        <dp:request>
-            <dp:get-status class="FirmwareStatus"/>
-        </dp:request>
-    </soapenv:Body>
-</soapenv:Envelope>
-EOF
-)
-
-    declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
-}
-##################################################################################
-# SOMA - Get File
-##################################################################################
-somaGetFile() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_DOMAIN=$4
-    DP_FILE=$5
-
-    SOMA_REQ=$(cat <<-EOF
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
-    <soapenv:Body>
-        <dp:request domain="$DP_DOMAIN">
-            <dp:get-file name="$DP_FILE"/>
-        </dp:request>
-    </soapenv:Body>
-</soapenv:Envelope>
-EOF
-)
-
-    declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
-}
-##################################################################################
-# Main section
 ##################################################################################
 if [ -z "$1" ]; then
     echo "Syntax error, aborting."
@@ -170,105 +26,233 @@ if [ ! -f ./$1 ]; then
 fi
 
 . ./system.conf
-. $1
+mkdir -p $FOLDER_BACKUPS
+mkdir -p $FOLDER_LOGS
+. ./utils.sh
+log "Loading configuration from ${1}"
+. ${1}
 
 if [ "$EMPTY_LOG_FILE_ON_START" = "true" ]; then
     printf "" > $LOG_FILE
 fi
 
-if [ -z "$DP_USER_SERVER0" ]; then
-    read -p "Enter the DataPower user name: " DP_USER_SERVER0
-fi
-
-if [ -z "$DP_PASSWORD_SERVER0" ]; then
-    read -sp "Enter the DataPower user password: " DP_PASSWORD_SERVER0
-    echo
+len=$(jq 'length' <<<"$DP_SERVERS")
+if ! [[ "$len" =~ ^[0-9]+$ ]] || [ "$len" -eq 0 ]; then
+    log_error "DP_SERVERS is not a valid, non-empty JSON array"
+    exit
 fi
 
 log_title "====================================================================================="
 log_title "Secure Backup the DataPower Gateway"
-log_title "====================================================================================="
 log_info "Start: $(date)"
-log_info "DataPower: $DP_SERVER0"
 log_info "DataPower Secure Backup folder: $DP_SB_FOLDER"
-log_info "====================================================================================="
+log_info "Number of DataPower gateways: ${len}"
 
-# Get the DataPower firmware details
-log_title "Checking firmware status"
-declare -a soma_resp_firmware_status="$(somaGetFirmwareStatus $DP_USER_SERVER0 $DP_PASSWORD_SERVER0 $DP_SOMA_URL)"
-soma_response_analysis=$(echo $soma_resp_firmware_status | grep -o '</FirmwareStatus>')
-if [ "${#soma_response_analysis}" = 0 ]; then
-    log_error "Failure"
-    log_error "$soma_resp_firmware_status"
-    exit
-fi
-firmware_version=$(echo $soma_resp_firmware_status | xmlstarlet sel -t -v "//Version")
+##################################################################################
+for ((i=0; i<$len; i++)); do
+    # declare -i cur_ind=$(( (i+1) % len))
+    declare -i cur_ind=$i
+    declare CUR_DP_SERVER=$(jq -r ".[$cur_ind]" <<<"$DP_SERVERS")
+    if [ -z "$CUR_DP_SERVER" ] || [ "$CUR_DP_SERVER" = "null" ]; then
+        log_error "DP_SERVERS[$cur_ind] is missing or invalid"
+        exit
+    fi
+    declare CUR_DP_MGMT_IP=$(jq -r .mgmt_ip <<<"${CUR_DP_SERVER}")
+    if [ -z "$CUR_DP_MGMT_IP" ] || [ "$CUR_DP_MGMT_IP" = "null" ]; then
+        log_error "DP_SERVERS[$cur_ind].mgmt_ip is missing"
+        exit
+    fi
+    declare CUR_DP_MGMT_SOMA_PORT=$(jq -r .soma_port <<<"${CUR_DP_SERVER}")
+    declare CUR_DP_USERNAME=$(jq -r .user_name <<<"${CUR_DP_SERVER}")
+    declare CUR_DP_PASSWORD=$(jq -r .user_password <<<"${CUR_DP_SERVER}")
+    declare CUR_SB_CERT=$(jq -r .sb_certificate <<<"${CUR_DP_SERVER}")
+    declare CUR_DP_MGMT_SOMA_URL="https://${CUR_DP_MGMT_IP}:${CUR_DP_MGMT_SOMA_PORT}${DP_SOMA_URI}"
+    declare CUR_DP_MGMT_AMP_URL="https://${CUR_DP_MGMT_IP}:${CUR_DP_MGMT_SOMA_PORT}${DP_AMP_URI}"
 
-log_success "Firmware version: $firmware_version"
-log_info "====================================================================================="
+    ##################################################################################
+    # Get the DataPower firmware details
+    ##################################################################################
+    log_title "====================================================================================="
+    log_title "Start working on DP: $CUR_DP_MGMT_IP"
+    log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+    log_title "${CUR_DP_MGMT_IP} Checking firmware status"
+    declare soma_resp_firmware_status="$(somaGetFirmwareStatus $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL)"
+    soma_response_analysis=$(printf '%s' "$soma_resp_firmware_status" | grep -o '</FirmwareStatus>')
+    if [ "${#soma_response_analysis}" = 0 ]; then
+        log_error "${CUR_DP_MGMT_IP} Failure"
+        log_error "${CUR_DP_MGMT_IP} $soma_resp_firmware_status"
+        exit
+    fi
+    firmware_version=$(printf '%s' "$soma_resp_firmware_status" | xmlstarlet sel -t -v "//Version")
+    log_info "${CUR_DP_MGMT_IP} Firmware version: $firmware_version"
+
+    if [ "$DO_QUIESCE" = "true" ]; then
+        ##################################################################################
+        # Gateway Peering Switch Primary 
+        ##################################################################################
+        log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+        log_title "${CUR_DP_MGMT_IP} Gateway Peering Switch Primary"
+        declare -i dst_ind=$(( (i+1) % len))
+        declare DST_DP_SERVER=$(jq -r ".[$dst_ind]" <<<"$DP_SERVERS")
+        if [ -z "$DST_DP_SERVER" ] || [ "$DST_DP_SERVER" = "null" ]; then
+            log_error "DP_SERVERS[$dst_ind] is missing or invalid"
+            exit
+        fi
+        declare DST_DP_MGMT_IP=$(jq -r .mgmt_ip <<<"${DST_DP_SERVER}")
+        if [ -z "$DST_DP_MGMT_IP" ] || [ "$DST_DP_MGMT_IP" = "null" ]; then
+            log_error "DP_SERVERS[$dst_ind].mgmt_ip is missing"
+            exit
+        fi
+        declare DST_DP_MGMT_SOMA_PORT=$(jq -r .soma_port <<<"${DST_DP_SERVER}")
+        declare DST_DP_USERNAME=$(jq -r .user_name <<<"${DST_DP_SERVER}")
+        declare DST_DP_PASSWORD=$(jq -r .user_password <<<"${DST_DP_SERVER}")
+        declare DST_DP_MGMT_SOMA_URL="https://${DST_DP_MGMT_IP}:${DST_DP_MGMT_SOMA_PORT}${DP_SOMA_URI}"
+        for cur_gateway_peering in "${GATEWAY_PEERING_SWITCHING[@]}"; do
+            log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+            log_title "${CUR_DP_MGMT_IP} Gateway Peering Switch Primary: domain=$QUIESCE_DOMAIN peering=$cur_gateway_peering"
+            declare soma_resp_gateway_peering_switch_primary="$(somaGatewayPeeringSwitchPrimary $DST_DP_USERNAME $DST_DP_PASSWORD $DST_DP_MGMT_SOMA_URL $QUIESCE_DOMAIN $cur_gateway_peering)"
+            log_info "${CUR_DP_MGMT_IP} $soma_resp_gateway_peering_switch_primary"
+        done
+
+        ##################################################################################
+        # Quiesce domain
+        ##################################################################################
+        log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+        log_title "${CUR_DP_MGMT_IP} Quiescing domain: ${QUIESCE_DOMAIN}"
+        declare soma_resp_quisce_domain="$(ampQuiesceDomain $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_AMP_URL $QUIESCE_DOMAIN $QUIESCE_INTERVAL)"
+        soma_response_analysis=$(printf '%s' "$soma_resp_quisce_domain" | grep -o '<result>ok</result>')
+        if [ "${#soma_response_analysis}" = 0 ]; then
+            log_error "${CUR_DP_MGMT_IP} Failure"
+            log_error "${CUR_DP_MGMT_IP} $soma_resp_quisce_domain"
+            exit
+        fi
+        log_info "${CUR_DP_MGMT_IP} Success"
+
+        log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+        log_title "${CUR_DP_MGMT_IP} Waiting to let the domain quiesce finish"
+        declare -i quiesce_check_count=0
+        while
+            ##################################################################################
+            # Wait to let the quiesce finish
+            ##################################################################################
+            log_info "${CUR_DP_MGMT_IP} Waiting for ${QUIESCE_INTERVAL} seconds"
+            sleep $QUIESCE_INTERVAL
+
+            ##################################################################################
+            # Verify that domain quiesced
+            ##################################################################################
+            log_info "${CUR_DP_MGMT_IP} Verifing that domain quiesced"
+            declare soma_response="$(somaGetDomainStatus $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL)"
+            domain_status=$(printf '%s' "$soma_response" | xml sel -t -v "normalize-space(//DomainStatus[Domain='$QUIESCE_DOMAIN']/QuiesceState)" -)
+            log_info "${CUR_DP_MGMT_IP} Domain status: $domain_status"
+            quiesce_check_count+=1
+            if [ "$domain_status" != "quiesced" ] && [ "$quiesce_check_count" -ge "$QUIESCE_MAX_CHECKS" ]; then
+                log_error "${CUR_DP_MGMT_IP} Domain did not quiesce after ${quiesce_check_count} checks, aborting"
+                exit
+            fi
+
+            [ "$domain_status" != "quiesced" ]
+        do true;done
+    fi
+
+    ##################################################################################
+    # Secure Backup
+    ##################################################################################
+    log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+    log_title "${CUR_DP_MGMT_IP} Creating a Secure Backup"
+    declare soma_response="$(somaSecureBackup $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL $CUR_SB_CERT $DP_SB_FOLDER)"
+
+    soma_response_analysis=$(printf '%s' "$soma_response" | grep -o 'OK')
+    if [ ! "$soma_response_analysis" = "OK" ]; then
+        log_error "${CUR_DP_MGMT_IP} Failure"
+        log_error "${CUR_DP_MGMT_IP} $soma_response"
+        exit
+    fi
+    log_info "${CUR_DP_MGMT_IP} Success"
+
+    if [ "$DO_QUIESCE" = "true" ]; then
+        ##################################################################################
+        # Un-Quiesce domain
+        ##################################################################################
+        log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+        log_title "${CUR_DP_MGMT_IP} Unquiescing domain ${QUIESCE_DOMAIN}"
+        declare soma_resp_unquisce_domain="$(ampUnQuiesceDomain $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_AMP_URL $QUIESCE_DOMAIN)"
+        soma_response_analysis=$(printf '%s' "$soma_resp_unquisce_domain" | grep -o '<result>ok</result>')
+        if [ "${#soma_response_analysis}" = 0 ]; then
+            log_error "${CUR_DP_MGMT_IP} Failure"
+            log_error "${CUR_DP_MGMT_IP} $soma_resp_unquisce_domain"
+            exit
+        fi
+        log_info "${CUR_DP_MGMT_IP} Success"
+    fi
+
+    ##################################################################################
+    # Download Secure Backup files
+    ##################################################################################
+    log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+    log_title "${CUR_DP_MGMT_IP} Downloading Secure Backup files"
+    LOCAL_SB_FOLDER=$FOLDER_BACKUPS/$CUR_DP_MGMT_IP/$firmware_version/$SB_FOLDER
+    log_info "${CUR_DP_MGMT_IP} Local Secure Backup folder: $LOCAL_SB_FOLDER"
+    mkdir -p "$LOCAL_SB_FOLDER"
+    log_info "${CUR_DP_MGMT_IP} Downloading $DP_SB_FOLDER/backupmanifest.xml"
+    DP_FILE_TO_GET="$DP_SB_FOLDER/backupmanifest.xml"
+    declare -a soma_response_get_file="$(somaGetFile $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL "default" "$DP_FILE_TO_GET")"
+    analysis=$(echo "$soma_response_get_file" | grep -o "$DP_FILE_TO_GET")
+    if [ ! "$analysis" = "$DP_FILE_TO_GET" ]; then
+        log_error "${CUR_DP_MGMT_IP} File download failed"
+        log_error "${CUR_DP_MGMT_IP} $soma_response_get_file"
+        exit
+    fi
+
+    ##################################################################################
+    # Extract the file base64 value from the SOAP response
+    ##################################################################################
+    backupmanifest_b64=$(printf '%s' "$soma_response_get_file" | xml sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
+    printf '%s' "$backupmanifest_b64" | base64 -d > "$LOCAL_SB_FOLDER/backupmanifest.xml"
+    # log_info "${CUR_DP_MGMT_IP} File downloaded successfully"
+
+    ##################################################################################
+    # Download all Secure Backup files per the manifest
+    ##################################################################################
+    xmlstarlet sel -t -v '//backupmanifest/files/file/filename' --nl "$LOCAL_SB_FOLDER/backupmanifest.xml" |
+    while IFS= read -r cur_file; do
+        DP_FILE_TO_GET="$DP_SB_FOLDER/$cur_file"
+        log_info "${CUR_DP_MGMT_IP} Downloading $DP_FILE_TO_GET"
+        declare -a soma_response_get_file="$(somaGetFile $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL "default" "$DP_FILE_TO_GET")"
+        analysis=$(echo "$soma_response_get_file" | grep -o "$DP_FILE_TO_GET")
+        if [ ! "$analysis" = "$DP_FILE_TO_GET" ]; then
+            log_error "${CUR_DP_MGMT_IP} File download failed"
+            log_error "${CUR_DP_MGMT_IP} $soma_response_get_file"
+            # exit
+        fi
+        file_b64=$(printf '%s' "$soma_response_get_file" | xml sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
+        printf '%s' "$file_b64" | base64 -d > "$LOCAL_SB_FOLDER/$cur_file"
+        # log_info "${CUR_DP_MGMT_IP} File downloaded successfully"
+    done
+
+    log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+    log_title "${CUR_DP_MGMT_IP} Downloaded Secure Backup files:"
+    log_info "$(ls -lh "$LOCAL_SB_FOLDER")"
+done
+
+log_title "====================================================================================="
+log_info "End: $(date)"
+log_title "====================================================================================="
+
+exit
+
 # Send the Secure Backup request
-log_title "Creating a Secure Backup"
-declare -a soma_response="$(somaSecureBackup $DP_USER_SERVER0 $DP_PASSWORD_SERVER0 $DP_SOMA_URL $DP_CERTIFICATE_SERVER0 $DP_SB_FOLDER)"
-
-soma_response_analysis=$(echo $soma_response | grep -o 'OK')
-if [ ! "$soma_response_analysis" = "OK" ]; then
-    log_error "Failure"
-    log_error "$soma_response"
-    exit
-fi
-log_success "Success"
-log_info "====================================================================================="
 
 # Download the Secure Backup manifest file
 log_title "Downloading Secure Backup files"
-LOCAL_SB_FOLDER=$DP_SERVER0/$firmware_version/$SB_FOLDER
-log_info "Local Secure Backup folder: $LOCAL_SB_FOLDER"
-
-mkdir -p $LOCAL_SB_FOLDER
-log_info "Downloading $DP_SB_FOLDER/backupmanifest.xml"
-DP_FILE_TO_GET="$DP_SB_FOLDER/backupmanifest.xml"
-declare -a soma_response_get_file="$(somaGetFile $DP_USER_SERVER0 $DP_PASSWORD_SERVER0 $DP_SOMA_URL "default" "$DP_FILE_TO_GET")"
-analysis=$(echo "$soma_response_get_file" | grep -o "$DP_FILE_TO_GET")
-if [ ! "$analysis" = "$DP_FILE_TO_GET" ]; then
-    log_error "File download failed"
-    log_error "$soma_response_get_file"
-    exit
-fi
-
-backupmanifest_b64=$(echo $soma_response_get_file | xmlstarlet sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']")
-$(echo -n $backupmanifest_b64 | base64 -d > $LOCAL_SB_FOLDER/backupmanifest.xml)
-log_success "File downloaded successfully"
-
-# Download all Secure Backup files per the manifest
-xmlstarlet sel -t -v '//backupmanifest/files/file/filename' --nl $LOCAL_SB_FOLDER/backupmanifest.xml |
-while IFS= read -r cur_file; do
-    DP_FILE_TO_GET="$DP_SB_FOLDER/$cur_file"
-    log_info "Downloading $DP_FILE_TO_GET"
-    declare -a soma_response_get_file="$(somaGetFile $DP_USER_SERVER0 $DP_PASSWORD_SERVER0 $DP_SOMA_URL "default" "$DP_FILE_TO_GET")"
-    analysis=$(echo "$soma_response_get_file" | grep -o "$DP_FILE_TO_GET")
-    if [ ! "$analysis" = "$DP_FILE_TO_GET" ]; then
-        log_error "File download failed"
-        log_error "$soma_response_get_file"
-        exit
-    fi
-    file_b64=$(echo $soma_response_get_file | xmlstarlet sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']")
-    $(echo -n $file_b64 | base64 -d > $LOCAL_SB_FOLDER/$cur_file)
-    log_success "File downloaded successfully"
-done
-log_info "====================================================================================="
-log_info "Downloaded Secure Backup files:"
-log_info "$(ls -lh $LOCAL_SB_FOLDER)"
-log_info "====================================================================================="
+log_title "====================================================================================="
 
 if [ "$ADD_TO_GIT" = "true" ]; then
     log_title "Pushing Secure Backup files to git repository"
-    log_info "Git remote=$GIT_REMOTE_NAME git branch=$GIT_BRANCH_NAME"
+    log_success "Git remote=$GIT_REMOTE_NAME git branch=$GIT_BRANCH_NAME"
     git pull $GIT_REMOTE_NAME $GIT_BRANCH_NAME
     git add $LOCAL_SB_FOLDER\*
     git commit -m "Automated push"
     git push $GIT_REMOTE_NAME $GIT_BRANCH_NAME
-    log_info "====================================================================================="
+    log_title "====================================================================================="
 fi
-
-log_info "End: $(date)"
-log_title "====================================================================================="
