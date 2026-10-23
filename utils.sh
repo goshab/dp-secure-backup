@@ -54,21 +54,40 @@ runSoma() {
     VALIDATE_OUTPUT=$7
 
     declare -a soma_cli=(curl -s -k --connect-timeout $CURL_CONNECTION_TIMEOUT)
+
+    # Set POST HTTP method
+    if [ ! -z "$DP_SOMA_REQ" ]; then
+        soma_cli+=(-X POST)
+    fi
+
+    # Add credentials
+    if [ ! -z "$DP_USERNAME" ]; then
+        soma_cli+=(-u "$DP_USERNAME:$DP_PASSWORD")
+        # basic_auth_header=$(printf '%s' "${DP_USERNAME}:${DP_PASSWORD}" | base64)
+        # soma_cli+=("-H \"Authorization: Basic ${basic_auth_header}\"")
+    fi
+
+    # Add HTTP URL parameter
+    soma_cli+=("$DP_SOMA_URL")
+
+    # Add request parameter
+    if [ ! -z "$DP_SOMA_REQ" ]; then
+        soma_cli+=(-d "$DP_SOMA_REQ")
+        # soma_cli+=(-d \'"$DP_SOMA_REQ"\')
+    fi
+
     if [ ! -z "$EXTRA_CURL_ARGS" ]; then
         soma_cli+=($EXTRA_CURL_ARGS)
-    fi
-    soma_cli+=("$DP_SOMA_URL")
-    if [ ! -z "$DP_SOMA_REQ" ]; then
-        soma_cli+=(-X POST -d "$DP_SOMA_REQ")
     fi
 
     if [ ! -z "$DP_SOMA_REQ_FILENAME" ]; then
         soma_cli+=(-T "$DP_SOMA_REQ_FILENAME")
     fi
-    soma_cli+=(-u "$DP_USERNAME:$DP_PASSWORD")
+
     if [ "${DEBUG:-false}" = "true" ]; then
         log_to_file "runSoma() SOMA curl cli=${soma_cli[*]}"
     fi
+
     soma_response=$("${soma_cli[@]}")
 
     if [ "${DEBUG:-false}" = "true" ]; then
