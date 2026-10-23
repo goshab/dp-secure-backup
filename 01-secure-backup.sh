@@ -103,11 +103,6 @@ for ((i=0; i<$len; i++)); do
     log_info "${CUR_DP_MGMT_IP} System Name: $system_name"
 
     if [ "$DO_QUIESCE" = "true" ]; then
-        ##################################################################################
-        # Gateway Peering Switch Primary 
-        ##################################################################################
-        log_title "${CUR_DP_MGMT_IP} ====================================================================================="
-        log_title "${CUR_DP_MGMT_IP} Gateway Peering Switch Primary"
         declare -i dst_ind=$(( (i+1) % len))
         declare DST_DP_SERVER=$(jq -r ".[$dst_ind]" <<<"$DP_SERVERS")
         if [ -z "$DST_DP_SERVER" ] || [ "$DST_DP_SERVER" = "null" ]; then
@@ -123,12 +118,33 @@ for ((i=0; i<$len; i++)); do
         declare DST_DP_USERNAME=$(jq -r .user_name <<<"${DST_DP_SERVER}")
         declare DST_DP_PASSWORD=$(jq -r .user_password <<<"${DST_DP_SERVER}")
         declare DST_DP_MGMT_SOMA_URL="https://${DST_DP_MGMT_IP}:${DST_DP_MGMT_SOMA_PORT}${DP_SOMA_URI}"
-        for cur_gateway_peering in "${GATEWAY_PEERING_SWITCHING[@]}"; do
+
+        ##################################################################################
+        # Get list of Gateway Peerings
+        ##################################################################################
+        log_title "${CUR_DP_MGMT_IP} ====================================================================================="
+        log_title "${CUR_DP_MGMT_IP} Retrieving list of Gateway Peering objects in domain=$QUIESCE_DOMAIN"
+        declare soma_resp_gateway_peerings="$(somaGetGatewayPeeringStatus $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL $QUIESCE_DOMAIN)"
+        soma_response_analysis=$(printf '%s' "$soma_resp_gateway_peerings" | grep -o '</ObjectStatus>')
+        if [ "${#soma_response_analysis}" = 0 ]; then
+            log_error "${CUR_DP_MGMT_IP} Failure"
+            log_error "${CUR_DP_MGMT_IP} $soma_resp_gateway_peerings"
+            exit
+        fi
+        gateway_peerings=$(printf '%s' "$soma_resp_gateway_peerings" | xmlstarlet sel -t -v "//ObjectStatus[Class='GatewayPeering' and AdminState='enabled']/Name/text()")
+        log_info "${CUR_DP_MGMT_IP} Gateway Peering list:\n$gateway_peerings"
+
+        ##################################################################################
+        # Switch Primary loop
+        ##################################################################################
+        while IFS= read -r cur_gateway_peering; do
+            [[ -z "$cur_gateway_peering" ]] && continue
+
             log_title "${CUR_DP_MGMT_IP} ====================================================================================="
             log_title "${CUR_DP_MGMT_IP} Gateway Peering Switch Primary: domain=$QUIESCE_DOMAIN peering=$cur_gateway_peering"
             declare soma_resp_gateway_peering_switch_primary="$(somaGatewayPeeringSwitchPrimary $DST_DP_USERNAME $DST_DP_PASSWORD $DST_DP_MGMT_SOMA_URL $QUIESCE_DOMAIN $cur_gateway_peering)"
             log_info "${CUR_DP_MGMT_IP} $soma_resp_gateway_peering_switch_primary"
-        done
+        done <<< "$gateway_peerings"
 
         ##################################################################################
         # Quiesce domain
@@ -142,7 +158,7 @@ for ((i=0; i<$len; i++)); do
             log_error "${CUR_DP_MGMT_IP} $soma_resp_quisce_domain"
             exit
         fi
-        log_info "${CUR_DP_MGMT_IP} Success"
+        log_info "${CUR_DP_MGMT_IP} Executed"
 
         log_title "${CUR_DP_MGMT_IP} ====================================================================================="
         log_title "${CUR_DP_MGMT_IP} Waiting to let the domain quiesce finish"
