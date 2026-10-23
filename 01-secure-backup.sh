@@ -203,13 +203,18 @@ for ((i=0; i<$len; i++)); do
     fi
 
     ##################################################################################
-    # Download Secure Backup files
+    # Calculating local path to store the Secure Backup files
     ##################################################################################
     log_title "${CUR_DP_MGMT_IP} ====================================================================================="
     log_title "${CUR_DP_MGMT_IP} Downloading Secure Backup files"
-    LOCAL_SB_FOLDER=$FOLDER_BACKUPS/$CUR_DP_MGMT_IP/$firmware_version/$SB_FOLDER
+    # LOCAL_SB_FOLDER=$FOLDER_BACKUPS/$CUR_DP_MGMT_IP/$firmware_version/$SB_FOLDER
+    LOCAL_SB_FOLDER=$FOLDER_BACKUPS/$system_name/$firmware_version/$SB_FOLDER
     log_info "${CUR_DP_MGMT_IP} Local Secure Backup folder: $LOCAL_SB_FOLDER"
     mkdir -p "$LOCAL_SB_FOLDER"
+
+    ##################################################################################
+    # Download Secure Backup files
+    ##################################################################################
     log_info "${CUR_DP_MGMT_IP} Downloading $DP_SB_FOLDER/backupmanifest.xml"
     DP_FILE_TO_GET="$DP_SB_FOLDER/backupmanifest.xml"
     declare -a soma_response_get_file="$(somaGetFile $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL "default" "$DP_FILE_TO_GET")"
