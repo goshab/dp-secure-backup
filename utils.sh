@@ -210,6 +210,28 @@ EOF
     echo $soma_response
 }
 ##################################################################################
+# SOMA - Get DataPower System Settings
+##################################################################################
+somaGetSystemSettings() {
+    DP_USERNAME=$1
+    DP_PASSWORD=$2
+    DP_SOMA_URL=$3
+
+    SOMA_REQ=$(cat <<-EOF
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
+    <soapenv:Body>
+        <dp:request>
+            <dp:get-config class="SystemSettings"/>
+        </dp:request>
+    </soapenv:Body>
+</soapenv:Envelope>
+EOF
+)
+
+    declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
+    echo $soma_response
+}
+##################################################################################
 # SOMA - Get Domain status
 ##################################################################################
 somaGetDomainStatus() {
