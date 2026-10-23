@@ -69,11 +69,12 @@ for ((i=0; i<$len; i++)); do
     declare CUR_DP_MGMT_SOMA_URL="https://${CUR_DP_MGMT_IP}:${CUR_DP_MGMT_SOMA_PORT}${DP_SOMA_URI}"
     declare CUR_DP_MGMT_AMP_URL="https://${CUR_DP_MGMT_IP}:${CUR_DP_MGMT_SOMA_PORT}${DP_AMP_URI}"
 
+    log_title "====================================================================================="
+    log_title "Start working on DP: $CUR_DP_MGMT_IP"
+
     ##################################################################################
     # Get the DataPower firmware details
     ##################################################################################
-    log_title "====================================================================================="
-    log_title "Start working on DP: $CUR_DP_MGMT_IP"
     log_title "${CUR_DP_MGMT_IP} ====================================================================================="
     log_title "${CUR_DP_MGMT_IP} Checking firmware status"
     declare soma_resp_firmware_status="$(somaGetFirmwareStatus $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL)"
@@ -85,6 +86,21 @@ for ((i=0; i<$len; i++)); do
     fi
     firmware_version=$(printf '%s' "$soma_resp_firmware_status" | xmlstarlet sel -t -v "//Version")
     log_info "${CUR_DP_MGMT_IP} Firmware version: $firmware_version"
+
+    ##################################################################################
+    # Get the DataPower System Settings
+    ##################################################################################
+    log_title "====================================================================================="
+    log_title "${CUR_DP_MGMT_IP} Checking System Settings"
+    declare soma_resp_system_settings="$(somaGetSystemSettings $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL)"
+    soma_response_analysis=$(printf '%s' "$soma_resp_system_settings" | grep -o '</SystemSettings>')
+    if [ "${#soma_response_analysis}" = 0 ]; then
+        log_error "${CUR_DP_MGMT_IP} Failure"
+        log_error "${CUR_DP_MGMT_IP} $soma_resp_firmware_status"
+        exit
+    fi
+    system_name=$(printf '%s' "$soma_resp_system_settings" | xmlstarlet sel -t -v "//SystemName")
+    log_info "${CUR_DP_MGMT_IP} System Name: $system_name"
 
     if [ "$DO_QUIESCE" = "true" ]; then
         ##################################################################################
