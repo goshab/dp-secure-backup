@@ -23,8 +23,9 @@ This script automates the DataPower Secure Backup process across one or more Dat
 ## Prerequisites
 
 - `curl`
-- `xmlstarlet`
 - `jq`
+- `xml`
+- `xmlstarlet`
 
 ## Support
 
