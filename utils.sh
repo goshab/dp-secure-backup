@@ -317,5 +317,14 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
+##################################################################################
+# Extract the base64 payload of the <file> element from an XML message.
+# Uses perl instead of xmlstarlet, because libxml2 refuses text nodes > 10MB
+# ("huge text node" / "Extra content at the end of the document").
+##################################################################################
+extractFileB64() {
+    perl -0777 -ne 'if (m{<(?:[\w.-]+:)?file(?:\s[^>]*)?>(.*?)</(?:[\w.-]+:)?file>}s) { ($b = $1) =~ s/\s+//g; print $b }'
+}
+##################################################################################

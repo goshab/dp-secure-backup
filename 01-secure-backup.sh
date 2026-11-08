@@ -10,7 +10,7 @@ set -uo pipefail
 # Prerequisites:
 #   curl (v7.79.1)
 #   jq
-#   xml
+#   perl
 #   xmlstarlet
 ##################################################################################
 # by Gosha Belenkiy
@@ -133,7 +133,7 @@ for ((i=0; i<$len; i++)); do
             exit
         fi
         gateway_peerings=$(printf '%s' "$soma_resp_gateway_peerings" | xmlstarlet sel -t -v "//ObjectStatus[Class='GatewayPeering' and AdminState='enabled']/Name/text()")
-        log_info "${CUR_DP_MGMT_IP} Gateway Peering list:\n$gateway_peerings"
+        log_info "${CUR_DP_MGMT_IP} Gateway Peering list: $gateway_peerings"
 
         ##################################################################################
         # Switch Primary loop
@@ -245,7 +245,7 @@ for ((i=0; i<$len; i++)); do
     ##################################################################################
     # Extract the file base64 value from the SOAP response
     ##################################################################################
-    backupmanifest_b64=$(printf '%s' "$soma_response_get_file" | xmlstarlet sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
+    backupmanifest_b64=$(printf '%s' "$soma_response_get_file" | extractFileB64)
     printf '%s' "$backupmanifest_b64" | base64 -d > "$LOCAL_SB_FOLDER/backupmanifest.xml"
     # log_info "${CUR_DP_MGMT_IP} File downloaded successfully"
 
@@ -263,7 +263,7 @@ for ((i=0; i<$len; i++)); do
             log_error "${CUR_DP_MGMT_IP} $soma_response_get_file"
             # exit
         fi
-        file_b64=$(printf '%s' "$soma_response_get_file" | xmlstarlet sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
+        file_b64=$(printf '%s' "$soma_response_get_file" | extractFileB64)
         printf '%s' "$file_b64" | base64 -d > "$LOCAL_SB_FOLDER/$cur_file"
         # log_info "${CUR_DP_MGMT_IP} File downloaded successfully"
     done
