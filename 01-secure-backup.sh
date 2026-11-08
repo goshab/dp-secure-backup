@@ -176,7 +176,7 @@ for ((i=0; i<$len; i++)); do
             ##################################################################################
             log_info "${CUR_DP_MGMT_IP} Verifing that domain quiesced"
             declare soma_response="$(somaGetDomainStatus $CUR_DP_USERNAME $CUR_DP_PASSWORD $CUR_DP_MGMT_SOMA_URL)"
-            domain_status=$(printf '%s' "$soma_response" | xml sel -t -v "normalize-space(//DomainStatus[Domain='$QUIESCE_DOMAIN']/QuiesceState)" -)
+            domain_status=$(printf '%s' "$soma_response" | xmlstarlet sel -t -v "normalize-space(//DomainStatus[Domain='$QUIESCE_DOMAIN']/QuiesceState)" -)
             log_info "${CUR_DP_MGMT_IP} Domain status: $domain_status"
             quiesce_check_count+=1
             if [ "$domain_status" != "quiesced" ] && [ "$quiesce_check_count" -ge "$QUIESCE_STATUS_POLL_MAX_CHECKS" ]; then
@@ -245,7 +245,7 @@ for ((i=0; i<$len; i++)); do
     ##################################################################################
     # Extract the file base64 value from the SOAP response
     ##################################################################################
-    backupmanifest_b64=$(printf '%s' "$soma_response_get_file" | xml sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
+    backupmanifest_b64=$(printf '%s' "$soma_response_get_file" | xmlstarlet sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
     printf '%s' "$backupmanifest_b64" | base64 -d > "$LOCAL_SB_FOLDER/backupmanifest.xml"
     # log_info "${CUR_DP_MGMT_IP} File downloaded successfully"
 
@@ -263,7 +263,7 @@ for ((i=0; i<$len; i++)); do
             log_error "${CUR_DP_MGMT_IP} $soma_response_get_file"
             # exit
         fi
-        file_b64=$(printf '%s' "$soma_response_get_file" | xml sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
+        file_b64=$(printf '%s' "$soma_response_get_file" | xmlstarlet sel -t -v "/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='response']/*[local-name()='file']" -)
         printf '%s' "$file_b64" | base64 -d > "$LOCAL_SB_FOLDER/$cur_file"
         # log_info "${CUR_DP_MGMT_IP} File downloaded successfully"
     done
