@@ -4,42 +4,34 @@ set -uo pipefail
 # by Gosha Belenkiy
 ##################################################################################
 log_to_file() {
-    MSG=$1
+    local msg="${1-}"
 
-    TIME=$(date +'%Y-%m-%d %H:%M:%S')
-    echo "$TIME $MSG" >> $LOG_FILE
+    printf '%s %s\n' "$(date +'%Y-%m-%d %H:%M:%S')" "$msg" >> "$LOG_FILE"
 }
-log(){
-    MSG="$1"
+# log <color> <message>
+# Only the color is passed through %b (it holds literal \033 sequences);
+# the message is printed verbatim, so backslashes in it are not interpreted.
+log() {
+    local color="${1-}"
+    local msg="${2-}"
 
-    TIME=$(date +'%Y-%m-%d %H:%M:%S')
-    # echo "$TIME $MSG"
-    echo -e "$TIME $MSG"
+    printf '%s %b%s%b\n' "$(date +'%Y-%m-%d %H:%M:%S')" "$color" "$msg" "${color:+$NC}"
 }
 log_title() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log $BLUE"$MSG"$NC
+    log_to_file "${1-}"
+    log "$BLUE" "${1-}"
 }
 log_info() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log "$MSG"
-    # log $PURPLE"$MSG"$NC
+    log_to_file "${1-}"
+    log "" "${1-}"
 }
 log_error() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log $RED"$MSG"$NC
+    log_to_file "${1-}"
+    log "$RED" "${1-}"
 }
 log_success() {
-    MSG=$1
-
-    log_to_file "$MSG"
-    log $GREEN"$MSG"$NC
+    log_to_file "${1-}"
+    log "$GREEN" "${1-}"
 }
 ##################################################################################
 # Send SOMA command
@@ -124,7 +116,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # SOMA - Run Quiesce Domain
@@ -151,7 +143,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${AMP_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # AMP - Run UnQuiesce Domain
@@ -176,7 +168,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${AMP_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # SOMA - GatewayPeering Switch Primary
@@ -204,7 +196,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # SOMA - Get DataPower firmware status
@@ -226,7 +218,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # SOMA - Get DataPower System Settings
@@ -248,7 +240,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # SOMA - Get Domain status
@@ -270,7 +262,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # SOMA - Get GatewayPeering status
@@ -293,7 +285,7 @@ EOF
 )
 
     declare -a soma_response="$(runSoma $DP_USERNAME $DP_PASSWORD $DP_SOMA_URL "${SOMA_REQ}" '' '' '' 'false')"
-    echo $soma_response
+    printf '%s' "$soma_response"
 }
 ##################################################################################
 # SOMA - Get File
