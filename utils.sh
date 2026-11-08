@@ -37,13 +37,13 @@ log_success() {
 # Send SOMA command
 ##################################################################################
 runSoma() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_SOMA_REQ=$4
-    DP_SOMA_REQ_FILENAME=$5
-    EXTRA_CURL_ARGS=$6
-    VALIDATE_OUTPUT=$7
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
+    local DP_SOMA_REQ=$4
+    local DP_SOMA_REQ_FILENAME=$5
+    local EXTRA_CURL_ARGS=$6
+    local VALIDATE_OUTPUT=$7
 
     declare -a soma_cli=(curl -s -k --connect-timeout $CURL_CONNECTION_TIMEOUT)
 
@@ -80,6 +80,8 @@ runSoma() {
         log_to_file "runSoma() SOMA curl cli=${soma_cli[*]}"
     fi
 
+    # local soma_response
+    local soma_response
     soma_response=$("${soma_cli[@]}")
 
     if [ "${DEBUG:-false}" = "true" ]; then
@@ -91,12 +93,13 @@ runSoma() {
 # SOMA - Run Secure Backup
 ##################################################################################
 somaSecureBackup() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_CERTIFICATE=$4
-    DP_SB_DST_FOLDER=$5
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
+    local DP_CERTIFICATE=$4
+    local DP_SB_DST_FOLDER=$5
 
+    local SOMA_REQ
     SOMA_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
     <soapenv:Body>
@@ -122,12 +125,13 @@ EOF
 # SOMA - Run Quiesce Domain
 ##################################################################################
 ampQuiesceDomain() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_DOMAIN_TO_QUIESCE=$4
-    QUIESCE_TIMEOUT=$5
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
+    local DP_DOMAIN_TO_QUIESCE=$4
+    local QUIESCE_TIMEOUT=$5
 
+    local AMP_REQ
     AMP_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/appliance/management/3.0">
     <soapenv:Body>
@@ -149,11 +153,12 @@ EOF
 # AMP - Run UnQuiesce Domain
 ##################################################################################
 ampUnQuiesceDomain() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_DOMAIN_TO_UNQUIESCE=$4
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
+    local DP_DOMAIN_TO_UNQUIESCE=$4
 
+    local AMP_REQ
     AMP_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/appliance/management/3.0">
     <soapenv:Body>
@@ -174,12 +179,13 @@ EOF
 # SOMA - GatewayPeering Switch Primary
 ##################################################################################
 somaGatewayPeeringSwitchPrimary() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    APIC_DOMAIN_NAME=$4
-    GATEWAYPEERING_NAME=$5
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
+    local APIC_DOMAIN_NAME=$4
+    local GATEWAYPEERING_NAME=$5
 
+    local SOMA_REQ
     SOMA_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
     <soapenv:Body>
@@ -202,10 +208,11 @@ EOF
 # SOMA - Get DataPower firmware status
 ##################################################################################
 somaGetFirmwareStatus() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
 
+    local SOMA_REQ
     SOMA_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
     <soapenv:Body>
@@ -224,10 +231,11 @@ EOF
 # SOMA - Get DataPower System Settings
 ##################################################################################
 somaGetSystemSettings() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
 
+    local SOMA_REQ
     SOMA_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
     <soapenv:Body>
@@ -246,10 +254,11 @@ EOF
 # SOMA - Get Domain status
 ##################################################################################
 somaGetDomainStatus() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
 
+    local SOMA_REQ
     SOMA_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
     <soapenv:Body>
@@ -268,11 +277,12 @@ EOF
 # SOMA - Get GatewayPeering status
 ##################################################################################
 somaGetGatewayPeeringStatus() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_DOMAIN=$4
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
+    local DP_DOMAIN=$4
 
+    local SOMA_REQ
     SOMA_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
     <soapenv:Body>
@@ -291,12 +301,13 @@ EOF
 # SOMA - Get File
 ##################################################################################
 somaGetFile() {
-    DP_USERNAME=$1
-    DP_PASSWORD=$2
-    DP_SOMA_URL=$3
-    DP_DOMAIN=$4
-    DP_FILE=$5
+    local DP_USERNAME=$1
+    local DP_PASSWORD=$2
+    local DP_SOMA_URL=$3
+    local DP_DOMAIN=$4
+    local DP_FILE=$5
 
+    local SOMA_REQ
     SOMA_REQ=$(cat <<-EOF
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dp="http://www.datapower.com/schemas/management">
     <soapenv:Body>
